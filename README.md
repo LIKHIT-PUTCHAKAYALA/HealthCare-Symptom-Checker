@@ -1,4 +1,5 @@
 ⚕️ AI-Powered Healthcare Symptom Checker
+
 An intelligent web application that leverages the power of Google's Gemini Pro to provide a preliminary analysis of health symptoms based on user input, including age and gender.
 
 ▶️ Demo
