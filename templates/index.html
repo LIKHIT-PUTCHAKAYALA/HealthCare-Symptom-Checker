@@ -158,17 +158,20 @@
                     const response = await fetch('/history');
                     const historyData = await response.json();
                     if (historyData.length === 0) { historyList.innerHTML = '<p class="text-gray-400 text-center mt-8">No analysis history found.</p>'; return; }
-                    historyList.innerHTML = historyData.map(item => `
+                    historyList.innerHTML = historyData.map(item => {
+                        const symptomsAttr = JSON.stringify(item.symptoms).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                        const analysisAttr = JSON.stringify(item.analysis).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                        return `
                         <div class="mb-4 p-4 bg-slate-800 rounded-lg border border-slate-700 cursor-pointer hover:bg-slate-700/50" 
-                             data-symptoms='${item.symptoms}' 
+                             data-symptoms='${symptomsAttr}' 
                              data-age='${item.age}' 
                              data-gender='${item.gender}' 
-                             data-analysis='${JSON.stringify(item.analysis)}'>
+                             data-analysis='${analysisAttr}'>
                             <p class="text-sm text-gray-400 mb-2">${item.timestamp}</p>
                             <p class="font-semibold text-white truncate pointer-events-none">${item.symptoms}</p>
                             <p class="text-xs text-gray-500 pointer-events-none">Age: ${item.age}, Gender: ${item.gender}</p>
                         </div>
-                    `).join('');
+                    `}).join('');
                 } catch (error) { historyList.innerHTML = '<p class="text-red-500">Failed to load history.</p>'; console.error("History fetch error:", error); }
             };
             const closeHistoryModal = () => { historyModal.classList.add('hidden'); historyModal.classList.remove('flex'); };
@@ -178,10 +181,10 @@
             historyList.addEventListener('click', (e) => {
                 const item = e.target.closest('[data-analysis]');
                 if (item) {
-                    symptomsInput.value = item.dataset.symptoms;
+                    symptomsInput.value = item.dataset.symptoms.replace(/&apos;/g, "'").replace(/&quot;/g, '"');
                     ageInput.value = item.dataset.age;
                     genderSelect.value = item.dataset.gender;
-                    const analysisData = JSON.parse(item.dataset.analysis);
+                    const analysisData = JSON.parse(item.dataset.analysis.replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
                     initialState.classList.add('hidden');
                     loader.classList.add('hidden');
                     resultsContent.classList.remove('hidden');
