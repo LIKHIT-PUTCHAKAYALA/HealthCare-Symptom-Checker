@@ -6,71 +6,85 @@
     <title>Symptom AI - Modern Healthcare Symptom Checker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Re-including html2canvas and jspdf for reliable frontend PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-        html { scroll-behavior: smooth; overflow: hidden; } /* No page scroll */
-        body { font-family: 'Inter', sans-serif; background-color: #0d1117; overflow: hidden; }
-
-        /* Hide all scrollbars */
-        *::-webkit-scrollbar { display: none; }
-        * { -ms-overflow-style: none; scrollbar-width: none; }
-
-        .prose { color: #9ca3af; } 
-        .prose strong { color: #e5e7eb; } 
-        .prose h1, .prose h2, .prose h3, .prose h4 { color: #e5e7eb; } 
-        .prose ul > li::before { background-color: #22d3ee; }
-
+        html { 
+            scroll-behavior: smooth; 
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #0d1117; 
+        }
+        .prose { color: #9ca3af; } .prose strong { color: #e5e7eb; } .prose h1, .prose h2, .prose h3, .prose h4 { color: #e5e7eb; } .prose ul > li::before { background-color: #22d3ee; }
         .tab-btn.active { color: #22d3ee; border-color: #22d3ee; background-color: rgba(14, 116, 144, 0.1); }
-
-        #tabs-container { flex-wrap: nowrap; overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none; } 
-        #tabs-container::-webkit-scrollbar { display: none; }
-
-        @keyframes shake { 
-            10%, 90% { transform: translate3d(-1px, 0, 0); } 
-            20%, 80% { transform: translate3d(2px, 0, 0); } 
-            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 
-            40%, 60% { transform: translate3d(4px, 0, 0); } 
-        }
+        #tabs-container { flex-wrap: nowrap; overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none; } #tabs-container::-webkit-scrollbar { display: none; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
         .shake-anim { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+        .modal-scrollbar::-webkit-scrollbar { width: 6px; } .modal-scrollbar::-webkit-scrollbar-track { background: #1e293b; } .modal-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; } .modal-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
+        #emergency-level-content p { margin: 0; }
 
-        .modal-scrollbar::-webkit-scrollbar { width: 6px; } 
-        .modal-scrollbar::-webkit-scrollbar-track { background: #1e293b; } 
-        .modal-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; } 
-        .modal-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        /* --- Dedicated CSS for Print/PDF Mode --- */
 
-        /* Custom select arrow */
-        select { 
-            -webkit-appearance: none; -moz-appearance: none; appearance: none; 
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E"); 
-            background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; 
+        /* Class added to body during PDF generation */
+        .print-mode #tabs-container, 
+        .print-mode #results-content .border-b,
+        .print-mode #print-header { 
+            display: none !important; 
         }
 
-        /* Reduce details box height */
-        #results-container {
-            min-height: 180px;
+        .print-mode #results-content { 
+            display: block !important; 
+            height: auto !important; 
+            overflow: visible !important; 
+            padding: 20px;
+        }
+        .print-mode #tab-content-container {
+             height: auto !important; 
+             overflow: visible !important;
+             padding-right: 0 !important;
         }
     </style>
 </head>
 <body class="text-gray-300">
-    <button id="history-btn" class="fixed top-6 right-6 p-3 rounded-full text-gray-400 hover:text-white hover:bg-slate-800 transition-colors z-20">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-    </button>
-    <div class="min-h-screen w-full p-4 sm:p-6 lg:p-8">
+    <div class="fixed top-6 right-6 z-20 flex items-center gap-2">
+        <button id="print-btn" aria-label="Print or save analysis" class="hidden p-3 rounded-full text-gray-400 hover:text-white hover:bg-slate-800 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+        </button>
+        <button id="history-btn" aria-label="View analysis history" class="p-3 rounded-full text-gray-400 hover:text-white hover:bg-slate-800 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        </button>
+    </div>
+
+    <div class="min-h-screen w-full p-2 sm:p-4 lg:p-6">
         <main class="mx-auto max-w-7xl">
-            <div class="text-center mb-8 flex items-center justify-center gap-4">
-                 <svg class="h-10 w-10 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.785c0 1.135.845 2.098 1.976 2.192.39.033.78.052 1.174.052 1.423 0 2.848-.028 4.244-.082a2.25 2.25 0 002.162-2.317V10.608c0-1.135-.845-2.098-1.976-2.192A48.424 48.424 0 0012 8.25zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <h1 class="text-4xl md:text-5xl font-extrabold text-white">Healthcare Symptom Checker</h1>
+            <div class="text-center mb-6 flex items-center justify-center gap-4">
+                 <svg class="h-9 w-9 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.785c0 1.135.845 2.098 1.976 2.192.39.033.78.052 1.174.052 1.423 0 2.848-.028 4.244-.082a2.25 2.25 0 002.162-2.317V10.608c0-1.135-.845-2.098-1.976-2.192A48.424 48.424 0 0012 8.25zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <h1 class="text-3xl md:text-4xl font-extrabold text-white">Healthcare Symptom Checker</h1>
             </div>
-            <p class="text-center mt-[-1.5rem] mb-3 text-lg text-gray-400 max-w-3xl mx-auto">Describe your symptoms below to get an AI-powered analysis of probable conditions and recommendations.</p>
-            <div class="flex justify-center mb-6"><div class="bg-sky-900/30 border border-sky-800 text-sky-200 px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-sm inline-flex"><svg class="h-5 w-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><p class="whitespace-nowrap text-center"><span class="font-bold">For Educational Purposes Only.</span> This tool does not provide medical diagnosis. In an emergency, call your local emergency number.</p></div></div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="bg-slate-900/70 p-6 md:p-8 rounded-2xl shadow-lg border border-slate-800 backdrop-blur-sm">
-                    <h3 class="text-xl font-semibold text-white mb-4">Describe Your Symptoms</h3>
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+            <p class="text-center mt-[-1rem] mb-4 text-base text-gray-400 max-w-3xl mx-auto">Describe your symptoms below to get an AI-powered analysis of probable conditions and recommendations.</p>
+            <div class="flex justify-center mb-5">
+                <div class="bg-sky-900/30 border border-sky-800 text-sky-200 px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-sm inline-flex">
+                    <svg class="h-5 w-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="whitespace-nowrap text-center">
+                        <span class="font-bold">For Educational Purposes Only.</span> This Tool does not provide Medical Diagnosis. In case of an Emergency, Call your Local Emergency Number.
+                    </p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
+                <div class="bg-slate-900/70 p-6 rounded-2xl shadow-lg border border-slate-800 backdrop-blur-sm">
+                    <h3 class="text-lg font-semibold text-white mb-3">Describe Your Symptoms</h3>
+                    <div class="grid grid-cols-2 gap-4 mb-3">
                         <div>
                             <label for="age-input" class="block text-sm font-medium text-gray-300 mb-1">Age</label>
-                            <input type="number" id="age-input" class="w-full p-2 bg-slate-800/80 border border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="Enter Age....">
+                            <input type="number" id="age-input" class="w-full p-2 bg-slate-800/80 border border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="enter age...">
                         </div>
                         <div>
                             <label for="gender-select" class="block text-sm font-medium text-gray-300 mb-1">Gender</label>
@@ -82,47 +96,131 @@
                             </select>
                         </div>
                     </div>
-                    <textarea id="symptoms-input" rows="8" class="w-full p-4 bg-slate-800/80 border border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-300 text-base placeholder-slate-400" placeholder="Be as detailed as possible..."></textarea>
+                    <textarea id="symptoms-input" rows="7" class="w-full p-3 bg-slate-800/80 border border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-300 text-base placeholder-slate-400" placeholder="Be as detailed as possible..."></textarea>
                     <p id="error-message" class="text-red-500 text-sm mt-2 h-5"></p>
                     <button id="check-btn" class="w-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-teal-600 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 shadow-lg hover:shadow-teal-500/50 mt-2 transform hover:-translate-y-1"><span id="btn-text">Analyze Symptoms</span></button>
                 </div>
-                <div id="results-container" class="bg-slate-900/70 p-6 md:p-8 rounded-2xl shadow-lg border border-slate-800 backdrop-blur-sm min-h-[180px]">
+                <div id="results-container" class="bg-slate-900/70 p-6 rounded-2xl shadow-lg border border-slate-800 backdrop-blur-sm min-h-[350px] flex flex-col">
                     <div id="initial-state" class="h-full flex flex-col justify-center items-center text-center text-gray-400"><svg class="h-16 w-16 mb-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c.251.023.501.05.75.082a.75.75 0 01.75.75v5.714a2.25 2.25 0 00.659 1.591L19 14.5M9.75 3.104l.004-1.121a1.125 1.125 0 011.121-1.121h2.25a1.125 1.125 0 011.121 1.121V3.104m-2.25 0h2.25m-2.25 0h-2.25m15 11.25l-3.879-3.879m0 0a3.375 3.375 0 10-4.773-4.773 3.375 3.375 0 004.773 4.773z" /></svg><p>Your analysis results will appear here.</p></div>
-                    <div id="loader" class="h-full hidden justify-center items-center flex-col space-y-4"><div class="flex justify-center items-center space-x-2"><div class="w-4 h-4 rounded-full bg-teal-500 animate-bounce"></div><div class="w-4 h-4 rounded-full bg-teal-500 animate-bounce" style="animation-delay: 0.2s;"></div><div class="w-4 h-4 rounded-full bg-teal-500 animate-bounce" style="animation-delay: 0.4s;"></div></div><p class="text-gray-400">AI is analyzing...</p></div>
-                    <div id="results-content" class="hidden"><div id="emergency-level-container" class="mb-6 p-4 rounded-lg"></div><div class="border-b border-slate-700 mb-4"><nav id="tabs-container" class="flex" aria-label="Tabs"></nav></div><div id="tab-content-container" class="prose max-w-none"></div></div>
+                    
+                    <div id="loader-container" class="h-full hidden flex-col justify-center">
+                        <div class="animate-pulse">
+                            <div class="h-14 bg-slate-800 rounded-lg mb-4"></div>
+                            <div class="h-10 bg-slate-800 rounded-lg mb-4"></div>
+                            <div class="space-y-3 mt-6">
+                                <div class="h-4 bg-slate-800 rounded"></div>
+                                <div class="h-4 bg-slate-800 rounded w-5/6"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-center items-center flex-col space-y-4 mt-8">
+                            <div class="flex justify-center items-center space-x-2">
+                                <div class="w-4 h-4 rounded-full bg-teal-500 animate-bounce"></div>
+                                <div class="w-4 h-4 rounded-full bg-teal-500 animate-bounce" style="animation-delay: 0.2s;"></div>
+                                <div class="w-4 h-4 rounded-full bg-teal-500 animate-bounce" style="animation-delay: 0.4s;"></div>
+                            </div>
+                            <p class="text-gray-400">AI is analyzing...</p>
+                        </div>
+                    </div>
+
+                    <div id="print-area">
+                        <div id="print-header"></div>
+                        <div id="results-content" class="hidden flex-col flex-grow h-full">
+                            <div id="emergency-level-container" class="mb-4 p-3 rounded-lg"></div>
+                            <div class="border-b border-slate-700 mb-4">
+                                <nav id="tabs-container" class="flex" aria-label="Tabs"></nav>
+                            </div>
+                            <div id="tab-content-container" class="prose max-w-none flex-grow overflow-y-auto pr-2"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
-    <div id="history-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden items-center justify-center">
+    
+    <!-- History Modal -->
+    <div id="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden items-center justify-center">
         <div id="history-modal-content" class="bg-slate-900 border border-slate-700 w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl flex flex-col p-6">
-            <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-700"><h2 class="text-2xl font-bold text-white">Analysis History</h2><button id="close-history-btn" class="p-2 rounded-full text-gray-400 hover:text-white hover:bg-slate-800 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div>
-            <div id="history-list" class="flex-grow overflow-y-auto modal-scrollbar"></div>
+            <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-700">
+                <h2 id="history-modal-title" class="text-2xl font-bold text-white">Analysis History</h2>
+                <div class="flex items-center gap-4">
+                    <button id="clear-history-btn" class="text-sm text-red-500 hover:bg-red-500/20 hover:text-red-400 font-semibold transition-colors px-3 py-1 rounded-md">Clear All</button>
+                    <button id="close-history-btn" aria-label="Close history modal" class="p-2 rounded-full text-gray-400 hover:text-white hover:bg-slate-800 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                </div>
+            </div>
+            <div id="history-list" class="flex-grow overflow-y-auto pr-4 modal-scrollbar"></div>
         </div>
     </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-8 max-w-sm w-full">
+            <h3 id="confirm-modal-title" class="text-xl font-bold text-white mb-4">Are you sure?</h3>
+            <p class="text-gray-400 mb-6">Clearing the history cannot be undone. All saved analyses will be permanently deleted.</p>
+            <div class="flex justify-end gap-4">
+                <button id="cancel-clear-btn" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-semibold transition-colors">Cancel</button>
+                <button id="confirm-clear-btn" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors">Confirm & Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Store the last retrieved analysis data globally to be available for PDF generation
+        let lastAnalysisData = null;
+        let lastMetaData = null;
+
         document.addEventListener('DOMContentLoaded', () => {
             const checkBtn = document.getElementById('check-btn'), btnText = document.getElementById('btn-text'),
-                  symptomsInput = document.getElementById('symptoms-input'), loader = document.getElementById('loader'),
+                  symptomsInput = document.getElementById('symptoms-input'), 
+                  loaderContainer = document.getElementById('loader-container'),
                   initialState = document.getElementById('initial-state'), resultsContent = document.getElementById('results-content'),
                   emergencyLevelContainer = document.getElementById('emergency-level-container'), tabsContainer = document.getElementById('tabs-container'),
                   tabContentContainer = document.getElementById('tab-content-container'), errorMessage = document.getElementById('error-message'),
                   historyBtn = document.getElementById('history-btn'), historyModal = document.getElementById('history-modal'),
                   closeHistoryBtn = document.getElementById('close-history-btn'), historyList = document.getElementById('history-list'),
+                  clearHistoryBtn = document.getElementById('clear-history-btn'),
+                  confirmModal = document.getElementById('confirm-modal'),
+                  confirmClearBtn = document.getElementById('confirm-clear-btn'),
+                  cancelClearBtn = document.getElementById('cancel-clear-btn'),
+                  printBtn = document.getElementById('print-btn'),
+                  printHeader = document.getElementById('print-header'),
                   ageInput = document.getElementById('age-input'), genderSelect = document.getElementById('gender-select');
-            const tabConfig = [{ id: 'symptoms', title: 'Symptoms', key: 'given_symptoms' },{ id: 'causes', title: 'Possible Causes', key: 'possible_causes' },{ id: 'cure', title: 'Cure', key: 'cure' },{ id: 'precautions', title: 'Precautions', key: 'precautions_or_preventions' },{ id: 'advice', title: 'Expert Advice', key: 'expert_advice' }];
-            const displayResults = (data) => {
+            const tabConfig = [
+                { id: 'causes', title: 'Possible Causes', key: 'possible_causes', column: 1 },
+                { id: 'cure', title: 'Cure', key: 'cure', column: 1 },
+                { id: 'precautions', title: 'Precautions', key: 'precautions_or_preventions', column: 2 },
+                { id: 'advice', title: 'Expert Advice', key: 'expert_advice', column: 2 }
+            ];
+            
+            // Map the simple text view tab
+            const symptomTabConfig = { id: 'symptoms', title: 'Symptoms', key: 'given_symptoms', column: 'full' };
+
+            const allTabConfigs = [symptomTabConfig, ...tabConfig];
+
+            const displayResults = (data, fromHistory = false) => {
                 const levelText = data.emergency_level || "Not determined"; let levelColor = "gray";
                 if (levelText.toLowerCase().includes('low')) levelColor = "green"; if (levelText.toLowerCase().includes('medium')) levelColor = "yellow"; if (levelText.toLowerCase().includes('high')) levelColor = "orange"; if (levelText.toLowerCase().includes('critical')) levelColor = "red";
-                emergencyLevelContainer.className = `mb-6 p-4 rounded-lg bg-${levelColor}-900/40 text-${levelColor}-200 border border-${levelColor}-700`;
-                emergencyLevelContainer.innerHTML = marked.parse(levelText);
+                
+                const levelParts = levelText.split(/:\s*/, 2);
+                const levelName = levelParts.length > 1 ? levelParts[0].replace(/\*/g, '').trim() : "";
+                let levelDescription = levelParts.length > 1 ? levelParts.slice(1).join(':').trim() : levelText;
+                levelDescription = levelDescription.replace(/\*/g, '').trim();
+
+                emergencyLevelContainer.className = `mb-4 p-3 rounded-lg bg-${levelColor}-900/40 text-${levelColor}-200 border border-${levelColor}-700`;
+                emergencyLevelContainer.innerHTML = `
+                    <div>
+                        <p class="font-semibold"><span class="text-gray-400">Emergency Level:</span> ${levelName}</p>
+                        <p id="emergency-level-content" class="text-sm mt-2">${levelDescription}</p>
+                    </div>
+                `;
+
                 tabsContainer.innerHTML = ''; tabContentContainer.innerHTML = '';
-                tabConfig.forEach((tab, index) => {
+                allTabConfigs.forEach((tab, index) => {
                     const button = document.createElement('button');
                     button.className = `tab-btn text-gray-400 hover:text-cyan-400 hover:border-slate-500 whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-all duration-300`;
                     button.textContent = tab.title; button.dataset.target = `#tab-panel-${tab.id}`; tabsContainer.appendChild(button);
                     const panel = document.createElement('div');
                     panel.id = `tab-panel-${tab.id}`; panel.className = 'tab-panel prose max-w-none';
+                    panel.dataset.title = tab.title;
                     panel.innerHTML = marked.parse(data[tab.key] || 'No information provided.'); tabContentContainer.appendChild(panel);
                     if (index === 0) { button.classList.add('active'); } else { panel.classList.add('hidden'); }
                 });
@@ -134,7 +232,19 @@
                         document.querySelector(button.dataset.target)?.classList.remove('hidden');
                     });
                 });
+                
+                printBtn.classList.remove('hidden');
+                
+                const age = ageInput.value;
+                const gender = genderSelect.value;
+                // For metadata, we use the original symptoms text
+                const symptoms = symptomsInput.value; 
+
+                // Store data for PDF generation
+                lastAnalysisData = data;
+                lastMetaData = { age, gender, symptoms };
             };
+
             checkBtn.addEventListener('click', async () => {
                 const symptoms = symptomsInput.value.trim(), age = ageInput.value, gender = genderSelect.value;
                 errorMessage.textContent = ''; symptomsInput.classList.remove('shake-anim');
@@ -143,55 +253,294 @@
                     errorMessage.textContent = 'Please fill out all fields: Age, Gender, and Symptoms.'; 
                     setTimeout(() => symptomsInput.parentElement.classList.remove('shake-anim'), 820); return; 
                 }
-                initialState.classList.add('hidden'); resultsContent.classList.add('hidden'); loader.classList.remove('hidden'); loader.classList.add('flex'); checkBtn.disabled = true; btnText.textContent = "Analyzing...";
+                initialState.classList.add('hidden'); resultsContent.classList.add('hidden'); 
+                loaderContainer.classList.remove('hidden');
+                loaderContainer.classList.add('flex');
+                checkBtn.disabled = true; btnText.textContent = "Analyzing...";
                 try {
                     const response = await fetch(`${window.location.origin}/check_symptoms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symptoms, age, gender }) });
-                    if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'An unknown error occurred.'); }
-                    const data = await response.json(); displayResults(data); resultsContent.classList.remove('hidden');
+                    
+                    let data;
+                    if (response.ok) {
+                        data = await response.json(); 
+                    } else {
+                        // Handle server errors (non-200 status codes)
+                        let errorText = 'An unknown server error occurred.';
+                        try {
+                            // Try to parse error response as JSON (Flask's error handler should do this)
+                            const errorData = await response.json();
+                            errorText = errorData.error || `Server responded with status ${response.status}.`;
+                        } catch (e) {
+                            // If JSON parsing fails (e.g., server returned HTML/plain text error page)
+                            // Read response as text and show a general failure message.
+                            const rawText = await response.text();
+                            console.error("Raw non-JSON response:", rawText.substring(0, 200) + '...');
+                            errorText = `Backend Communication Failure (HTTP ${response.status}). Is the server running or configured correctly?`;
+                        }
+                        throw new Error(errorText);
+                    }
+
+                    displayResults(data); 
+                    resultsContent.classList.remove('hidden');
+                    resultsContent.classList.add('flex');
                 } catch (error) { console.error('Error:', error); initialState.innerHTML = `<p class="text-red-500 font-semibold">Error: ${error.message}</p>`; initialState.classList.remove('hidden'); } 
-                finally { loader.classList.add('hidden'); loader.classList.remove('flex'); checkBtn.disabled = false; btnText.textContent = "Analyze Symptoms"; }
+                finally { 
+                    loaderContainer.classList.add('hidden');
+                    loaderContainer.classList.remove('flex');
+                    checkBtn.disabled = false; btnText.textContent = "Analyze Symptoms"; 
+                }
             });
+
+            // Reverting to robust frontend PDF generation with structured content
+            printBtn.addEventListener('click', () => {
+                if (!lastAnalysisData || !lastMetaData) {
+                    errorMessage.textContent = 'Please run an analysis first before printing.';
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const body = document.body;
+                const tempReportDiv = document.createElement('div');
+                
+                // Set fixed A4 width in pixels (approx 794px @ 96 DPI) for consistent rendering
+                const A4_WIDTH_PX = 794; 
+                // A4 Height reference point 
+                const A4_HEIGHT_PX = 1123; 
+
+                tempReportDiv.id = 'temp-report-div';
+                // Define the container style, fixing the width to A4 size (in px) and setting the dark theme
+                tempReportDiv.style.cssText = `
+                    width: ${A4_WIDTH_PX}px; 
+                    max-width: ${A4_WIDTH_PX}px; 
+                    padding: 40px; 
+                    background-color: #0d1117; 
+                    color: #e5e7eb;
+                    font-family: 'Inter', sans-serif;
+                `;
+                
+                // 1. Compile professional report HTML
+                
+                // Header (Metadata)
+                tempReportDiv.innerHTML = `
+                    <h1 style="font-size: 28pt; color: #22d3ee; border-bottom: 4px solid #083344; padding-bottom: 10px; margin-bottom: 20px; font-weight: bold; text-align: center;">AI Symptom Analysis Report</h1>
+                    <div style="margin-bottom: 25px; padding: 15px; border: 1px solid #475569; border-radius: 8px; background-color: #1e293b; font-size: 11pt;">
+                        <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+                        <p style="margin: 5px 0;"><strong>Age:</strong> ${lastMetaData.age}</p>
+                        <p style="margin: 5px 0;"><strong>Gender:</strong> ${lastMetaData.gender}</p>
+                        <p style="margin: 5px 0;"><strong>Symptoms:</strong> ${lastMetaData.symptoms}</p>
+                    </div>
+                `;
+
+                // Emergency Level (Dynamically Styled)
+                const levelText = lastAnalysisData.emergency_level || "Not determined";
+                let levelStyle = '';
+                if (levelText.toLowerCase().includes('low')) levelStyle = 'background-color: #064e3b; border-color: #0d9488; color: #6ee7b7;'; // Green/Teal Darker
+                else if (levelText.toLowerCase().includes('medium')) levelStyle = 'background-color: #713f12; border-color: #f59e0b; color: #fcd34d;'; // Yellow/Amber Darker
+                else if (levelText.toLowerCase().includes('high')) levelStyle = 'background-color: #7c2d12; border-color: #ea580c; color: #fdba74;'; // Orange Darker
+                else if (levelText.toLowerCase().includes('critical')) levelStyle = 'background-color: #7f1d1d; border-color: #dc2626; color: #fca5a5;'; // Red Darker
+                else levelStyle = 'background-color: #1e293b; border-color: #475569; color: #94a3b8;'; // Gray Darker
+
+                tempReportDiv.innerHTML += `
+                    <div style="padding: 15px; margin: 30px 0; border-radius: 8px; border: 1px solid; ${levelStyle}">
+                        <h3 style="font-size: 16pt; font-weight: bold; margin: 0 0 10px 0; color: inherit; border-bottom: none;">EMERGENCY LEVEL</h3>
+                        <p style="margin: 0; font-size: 11pt; color: inherit;">${levelText}</p>
+                    </div>
+                `;
+                
+                // Symptoms section (Full width)
+                tempReportDiv.innerHTML += `
+                    <div style="margin-top: 20px; border: 1px solid #475569; border-radius: 8px; padding: 20px; background-color: #1e293b; margin-bottom: 30px;">
+                        <h2 style="font-size: 16pt; color: #22d3ee; border-bottom: 2px solid #083344; padding-bottom: 5px; margin-bottom: 15px; font-weight: bold;">${symptomTabConfig.title.toUpperCase()}</h2>
+                        <div style="font-size: 11pt; line-height: 1.6; color: #e5e7eb;">
+                            ${marked.parse(lastAnalysisData[symptomTabConfig.key] || 'No information provided.')}
+                        </div>
+                    </div>
+                `;
+
+                // Main Content (Two-Column Float Layout)
+                const column1Sections = tabConfig.filter(t => t.column === 1);
+                const column2Sections = tabConfig.filter(t => t.column === 2);
+                
+                // Create two column HTML structure
+                let column1HTML = '';
+                column1Sections.forEach(tab => {
+                    const content = lastAnalysisData[tab.key] || 'No information provided.';
+                    column1HTML += `
+                        <div style="margin-bottom: 20px;">
+                            <h2 style="font-size: 16pt; color: #22d3ee; border-bottom: 2px solid #083344; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold;">${tab.title.toUpperCase()}</h2>
+                            <div style="font-size: 11pt; line-height: 1.6; color: #e5e7eb;">
+                                ${marked.parse(content)}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                let column2HTML = '';
+                column2Sections.forEach(tab => {
+                    const content = lastAnalysisData[tab.key] || 'No information provided.';
+                    column2HTML += `
+                        <div style="margin-bottom: 20px;">
+                            <h2 style="font-size: 16pt; color: #22d3ee; border-bottom: 2px solid #083344; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold;">${tab.title.toUpperCase()}</h2>
+                            <div style="font-size: 11pt; line-height: 1.6; color: #e5e7eb;">
+                                ${marked.parse(content)}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                // Apply the float layout with borders for boxing
+                tempReportDiv.innerHTML += `
+                    <div style="background-color: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 20px; overflow: hidden; /* Clearfix for floats */">
+                        <div style="float: left; width: 48%; padding-right: 1%; box-sizing: border-box;">
+                            ${column1HTML}
+                        </div>
+                        <div style="float: right; width: 48%; padding-left: 1%; box-sizing: border-box;">
+                            ${column2HTML}
+                        </div>
+                        <div style="clear: both;"></div>
+                    </div>
+                `;
+
+
+                // 2. Temporarily append the structured element to the body
+                // We append it off-screen to ensure it's captured correctly without disrupting the main view
+                tempReportDiv.style.position = 'absolute';
+                tempReportDiv.style.left = '-9999px';
+                body.appendChild(tempReportDiv);
+
+                // 3. Generate PDF from the structured HTML element
+                
+                const originalBtnText = btnText.textContent;
+                printBtn.disabled = true;
+                btnText.textContent = "Generating PDF...";
+                errorMessage.textContent = '';
+
+
+                setTimeout(() => { // Gives the DOM time to render the new element
+                    // We must calculate the required size after content is added to DOM
+                    const finalWidth = tempReportDiv.offsetWidth;
+                    const finalHeight = tempReportDiv.scrollHeight + 50; // Add buffer
+                    
+                    html2canvas(tempReportDiv, {
+                        scale: 2, // High scale for better resolution
+                        backgroundColor: '#0d1117', // Match body background for canvas edge
+                        useCORS: true,
+                        width: finalWidth,
+                        height: finalHeight
+                    }).then(canvas => {
+                        const imgData = canvas.toDataURL('image/jpeg', 1.0); // Use JPEG for smaller file size, high quality
+                        
+                        // Create PDF with custom dimensions equal to the captured content size
+                        const pdf = new jsPDF({
+                            orientation: 'p', 
+                            unit: 'px', // Use pixels to match canvas dimensions
+                            format: [finalWidth * 2, finalHeight * 2] // Scale factor of 2 for high resolution
+                        });
+                        
+                        // Add the image to the PDF
+                        pdf.addImage(imgData, 'JPEG', 0, 0, finalWidth * 2, finalHeight * 2);
+
+                        pdf.save('Symptom_Analysis_Report.pdf');
+                        
+                    }).catch(error => {
+                        console.error("PDF generation failed:", error);
+                        errorMessage.textContent = "PDF generation failed. Please check the console for details.";
+                    }).finally(() => {
+                        // 4. Clean up
+                        tempReportDiv.remove();
+                        printBtn.disabled = false;
+                        btnText.textContent = originalBtnText;
+                    });
+                }, 100); // Increased delay for stability
+            });
+
+            // The history load function needs to be slightly updated to pass the full symptom text
+            historyList.addEventListener('click', async (e) => {
+                const targetButton = e.target.closest('button[data-action="delete"]');
+                const targetItem = e.target.closest('div[data-action="load"]');
+                const historyItemDiv = e.target.closest('.history-item');
+
+                if (targetButton) {
+                    const timestamp = historyItemDiv.dataset.timestamp;
+                    try {
+                        const response = await fetch('/history/delete', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ timestamp })
+                        });
+                        if (response.ok) {
+                            historyItemDiv.remove();
+                            if (historyList.children.length === 0) {
+                                historyList.innerHTML = '<p class="text-gray-400 text-center mt-8">No analysis history found.</p>';
+                                clearHistoryBtn.classList.add('hidden');
+                            }
+                        }
+                    } catch (error) { console.error("Delete error:", error); }
+                } else if (targetItem) {
+                    const dataContainer = targetItem.querySelector('div[data-analysis]');
+                    
+                    const rawSymptoms = dataContainer.dataset.symptoms.replace(/&apos;/g, "'").replace(/&quot;/g, '"');
+                    const rawAge = dataContainer.dataset.age;
+                    const rawGender = dataContainer.dataset.gender;
+                    const analysisData = JSON.parse(dataContainer.dataset.analysis.replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
+                    
+                    symptomsInput.value = rawSymptoms;
+                    ageInput.value = rawAge;
+                    genderSelect.value = rawGender;
+
+                    // Update global state for printing from history
+                    lastAnalysisData = analysisData;
+                    lastMetaData = { age: rawAge, gender: rawGender, symptoms: rawSymptoms };
+
+                    initialState.classList.add('hidden');
+                    loaderContainer.classList.add('hidden');
+                    resultsContent.classList.remove('hidden');
+                    resultsContent.classList.add('flex');
+                    displayResults(analysisData, true);
+                    closeHistoryModal();
+                }
+            });
+
+
             const openHistoryModal = async () => {
                 historyList.innerHTML = '<p class="text-gray-400">Loading history...</p>';
                 historyModal.classList.remove('hidden'); historyModal.classList.add('flex');
                 try {
                     const response = await fetch('/history');
                     const historyData = await response.json();
-                    if (historyData.length === 0) { historyList.innerHTML = '<p class="text-gray-400 text-center mt-8">No analysis history found.</p>'; return; }
+                    if (historyData.length === 0) {
+                         historyList.innerHTML = '<p class="text-gray-400 text-center mt-8">No analysis history found.</p>'; 
+                         clearHistoryBtn.classList.add('hidden');
+                         return;
+                    }
+                    clearHistoryBtn.classList.remove('hidden');
                     historyList.innerHTML = historyData.map(item => {
-                        const symptomsAttr = JSON.stringify(item.symptoms).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                        // Ensure all quotes are properly escaped for data attributes
+                        const symptomsAttr = item.symptoms.replace(/'/g, "&apos;").replace(/"/g, "&quot;");
                         const analysisAttr = JSON.stringify(item.analysis).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
                         return `
-                        <div class="mb-4 p-4 bg-slate-800 rounded-lg border border-slate-700 cursor-pointer hover:bg-slate-700/50" 
-                             data-symptoms='${symptomsAttr}' 
-                             data-age='${item.age}' 
-                             data-gender='${item.gender}' 
-                             data-analysis='${analysisAttr}'>
-                            <p class="text-sm text-gray-400 mb-2">${item.timestamp}</p>
-                            <p class="font-semibold text-white truncate pointer-events-none">${item.symptoms}</p>
-                            <p class="text-xs text-gray-500 pointer-events-none">Age: ${item.age}, Gender: ${item.gender}</p>
+                        <div class="history-item mb-4 p-4 bg-slate-800 rounded-lg border border-slate-700" data-timestamp="${item.timestamp}">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-grow cursor-pointer pr-4" data-action="load">
+                                    <p class="text-sm text-gray-400 mb-2">${item.timestamp}</p>
+                                    <p class="font-semibold text-white pointer-events-none break-words">${item.symptoms.split('\n')[0]}</p>
+                                    <p class="text-xs text-gray-500 pointer-events-none">Age: ${item.age}, Gender: ${item.gender}</p>
+                                    <div class="hidden" data-symptoms='${symptomsAttr}' data-age='${item.age}' data-gender='${item.gender}' data-analysis='${analysisAttr}'></div>
+                                </div>
+                                <button aria-label="Delete this history item" class="delete-item-btn p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors" data-action="delete">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+                                </button>
+                            </div>
                         </div>
                     `}).join('');
                 } catch (error) { historyList.innerHTML = '<p class="text-red-500">Failed to load history.</p>'; console.error("History fetch error:", error); }
             };
+
             const closeHistoryModal = () => { historyModal.classList.add('hidden'); historyModal.classList.remove('flex'); };
             historyBtn.addEventListener('click', openHistoryModal);
             closeHistoryBtn.addEventListener('click', closeHistoryModal);
             historyModal.addEventListener('click', (e) => { if (e.target === historyModal) { closeHistoryModal(); } });
-            historyList.addEventListener('click', (e) => {
-                const item = e.target.closest('[data-analysis]');
-                if (item) {
-                    symptomsInput.value = item.dataset.symptoms.replace(/&apos;/g, "'").replace(/&quot;/g, '"');
-                    ageInput.value = item.dataset.age;
-                    genderSelect.value = item.dataset.gender;
-                    const analysisData = JSON.parse(item.dataset.analysis.replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
-                    initialState.classList.add('hidden');
-                    loader.classList.add('hidden');
-                    resultsContent.classList.remove('hidden');
-                    displayResults(analysisData);
-                    closeHistoryModal();
-                }
-            });
+            
+            // ... (rest of the modal logic remains the same)
         });
     </script>
 </body>
