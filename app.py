@@ -84,6 +84,17 @@ def parse_gemini_response(text):
             sections["emergency_level"] = content
     return sections
 
+def read_history():
+    try:
+        with open(HISTORY_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def write_history(history):
+    with open(HISTORY_FILE, 'w') as f:
+        json.dump(history, f, indent=4)
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -108,11 +119,8 @@ def check_symptoms():
         response = model.generate_content(full_prompt)
         result_text = response.text
         parsed_result = parse_gemini_response(result_text)
-        try:
-            with open(HISTORY_FILE, 'r') as f:
-                history = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            history = []
+        
+        history = read_history()
         history.insert(0, {
             'symptoms': user_symptoms,
             'age': user_age,
@@ -120,8 +128,8 @@ def check_symptoms():
             'analysis': parsed_result,
             'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
-        with open(HISTORY_FILE, 'w') as f:
-            json.dump(history, f, indent=4)
+        write_history(history)
+        
         return jsonify(parsed_result)
     except Exception as e:
         print(f"🔴 An error occurred while processing your request: {e}")
@@ -129,12 +137,25 @@ def check_symptoms():
 
 @app.route('/history', methods=['GET'])
 def get_history():
-    try:
-        with open(HISTORY_FILE, 'r') as f:
-            history = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        history = []
-    return jsonify(history)
+    return jsonify(read_history())
+
+@app.route('/history/delete', methods=['POST'])
+def delete_history_item():
+    data = request.get_json()
+    if not data or 'timestamp' not in data:
+        return jsonify({"error": "Timestamp is required."}), 400
+        
+    timestamp_to_delete = data['timestamp']
+    history = read_history()
+    new_history = [item for item in history if item.get('timestamp') != timestamp_to_delete]
+    
+    write_history(new_history)
+    return jsonify({"success": True, "message": "History item deleted."})
+
+@app.route('/history/clear', methods=['POST'])
+def clear_history():
+    write_history([])
+    return jsonify({"success": True, "message": "History cleared."})
 
 if __name__ == '__main__':
     app.run(debug=True)
