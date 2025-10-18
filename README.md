@@ -26,8 +26,10 @@ This tool is for educational and informational purposes only. The analysis provi
   </ul>
 </li>
 <li><b>Emergency Level Assessment:</b> Assigns a color-coded emergency level (Low to Critical) to help users gauge urgency.</li>
+  <img width="1919" height="978" alt="image" src="https://github.com/user-attachments/assets/ca1df5b4-9353-4873-8ff8-82c3040a9726" />
 <li><b>Query History:</b> Automatically saves each analysis to a local history.json file for later review.</li>
 <li><b>Modern UI:</b> A sleek, dark-themed, and responsive user interface built with Tailwind CSS.</li>
+<li><b>Download Results:</b> Generate a Structured Report of the Results Obtained.</li>
 </ul>
 
 <h2 style="font-size:32px;">🛠️ Tech Stack</h2>
